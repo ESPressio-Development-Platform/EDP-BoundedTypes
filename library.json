@@ -1,0 +1,24 @@
+{
+  "name": "EDP-BoundedTypes",
+  "description": "Strongly memory-bounded, allocation-free value and container types for the ESPressio Development Platform",
+  "keywords": "espressio,bounded,memory,deterministic,embedded,string,vector,map,set,esp32",
+  "homepage": "https://espressio.org",
+  "authors": {
+    "name": "Simon Stuart",
+    "maintainer": true,
+    "url": "https://espressio.org"
+  },
+  "build": {
+    "flags": ["-std=gnu++17"],
+    "unflags": ["-std=gnu++11"]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ESPressio-Development-Platform/EDP-BoundedTypes.git"
+  },
+  "version": "0.1.0",
+  "license": "Apache-2.0",
+  "frameworks": "*",
+  "platforms": "*",
+  "dependencies": []
+}
