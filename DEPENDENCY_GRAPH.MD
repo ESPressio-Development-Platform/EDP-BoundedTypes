@@ -17,6 +17,16 @@ EDP-BoundedTypes
 
 None.
 
+## Reverse Integration Dependencies
+
 External libraries may provide `TypeConversionAdapter<TSource, TTarget>` specializations for Types they own. Those integrations create a dependency **from the external library toward `EDP-BoundedTypes`**; they do not create a dependency from `EDP-BoundedTypes` back to the external library.
 
-Examples include future Arduino, ESP-IDF, FreeRTOS, or third-party Type adapters.
+Current example:
+
+```text
+EDP-Platform-Arduino
+└── EDP-BoundedTypes [optional]
+    condition: Arduino String / Bounded String conversion integration is included or used
+```
+
+That reverse optional integration does not alter the dependency graph of this repository.
