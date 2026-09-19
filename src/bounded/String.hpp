@@ -3,7 +3,6 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
-#include <cstring>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -12,6 +11,7 @@
 #include "CapacityTraits.hpp"
 #include "MemoryBoundedTraits.hpp"
 #include "TypeConversionAdapter.hpp"
+#include "detail/ByteOperationsPolicy.hpp"
 #include "detail/CapacityValidation.hpp"
 #include "detail/SizeCounter.hpp"
 #include "detail/TypeNormalization.hpp"
@@ -80,10 +80,18 @@ namespace ESPressio::Bounded {
     };
 
     /// Stores a variable-length null-terminated text byte sequence with a compile-time payload capacity and no dynamic allocation.
-    template<std::size_t TCapacity>
+    /// @tparam TCapacity Maximum logical capacity in bytes.
+    /// @tparam TByteOperationsProvider Stateless EDP-Memory ByteOperations provider selected at compile time.
+    template<
+        std::size_t TCapacity,
+        class TByteOperationsProvider = Detail::DefaultByteOperationsProvider
+    >
     class String final {
 
     private:
+
+        /// Compile-time zero-state raw byte-operation policy used by this String.
+        using ByteOperations = Detail::ByteOperationsPolicy<TByteOperationsProvider>;
 
         // Storage state.
 
@@ -138,14 +146,16 @@ namespace ESPressio::Bounded {
         // Internal mutation helpers.
 
         /// Copies a known-valid bounded String payload without performing fallible validation.
-        template<std::size_t TSourceCapacity>
+        /// @tparam TSourceCapacity Compile-time capacity of the source bounded value.
+        /// @tparam TSourceByteOperationsProvider ByteOperations provider selected by the source bounded value.
+        template<std::size_t TSourceCapacity, class TSourceByteOperationsProvider>
         void CopyFromKnownValid(
-            const String<TSourceCapacity>& source
+            const String<TSourceCapacity, TSourceByteOperationsProvider>& source
         ) noexcept {
             const auto sourceSize = source.Size();
 
             if (sourceSize > 0U) {
-                std::memmove(
+                ByteOperations::MoveBytes(
                     _storage.data(),
                     source.Data(),
                     sourceSize
@@ -175,7 +185,7 @@ namespace ESPressio::Bounded {
             }
 
             if (length > 0U) {
-                std::memmove(
+                ByteOperations::MoveBytes(
                     _storage.data(),
                     source,
                     length
@@ -207,7 +217,7 @@ namespace ESPressio::Bounded {
             const auto previousSize = Size();
 
             if (length > 0U) {
-                std::memmove(
+                ByteOperations::MoveBytes(
                     _storage.data() + previousSize,
                     source,
                     length
@@ -251,26 +261,26 @@ namespace ESPressio::Bounded {
                 sourceOffset
             );
 
-            std::memmove(
+            ByteOperations::MoveBytes(
                 _storage.data() + index + length,
                 _storage.data() + index,
                 previousSize - index
             );
 
             if (!sourceAliasesPayload) {
-                std::memmove(
+                ByteOperations::MoveBytes(
                     _storage.data() + index,
                     source,
                     length
                 );
             } else if (sourceOffset + length <= index) {
-                std::memmove(
+                ByteOperations::MoveBytes(
                     _storage.data() + index,
                     _storage.data() + sourceOffset,
                     length
                 );
             } else if (sourceOffset >= index) {
-                std::memmove(
+                ByteOperations::MoveBytes(
                     _storage.data() + index,
                     _storage.data() + sourceOffset + length,
                     length
@@ -280,7 +290,7 @@ namespace ESPressio::Bounded {
                 const auto suffixLength = length - prefixLength;
 
                 if (prefixLength > 0U) {
-                    std::memmove(
+                    ByteOperations::MoveBytes(
                         _storage.data() + index,
                         _storage.data() + sourceOffset,
                         prefixLength
@@ -288,7 +298,7 @@ namespace ESPressio::Bounded {
                 }
 
                 if (suffixLength > 0U) {
-                    std::memmove(
+                    ByteOperations::MoveBytes(
                         _storage.data() + index + prefixLength,
                         _storage.data() + index + length,
                         suffixLength
@@ -306,20 +316,21 @@ namespace ESPressio::Bounded {
         // Conversion dispatch helpers.
 
         /// Dispatches an explicitly requested conversion from this bounded String to a target Type.
+        /// @tparam TTarget Explicit conversion target Type.
         template<class TTarget>
         auto CastToImplementation(
             TTarget& target
         ) const noexcept(
             TypeConversionAdapter<
-                String<TCapacity>,
+                String<TCapacity, TByteOperationsProvider>,
                 Detail::NormalizedType<TTarget>
             >::IsNoexcept
         ) -> typename TypeConversionAdapter<
-            String<TCapacity>,
+            String<TCapacity, TByteOperationsProvider>,
             Detail::NormalizedType<TTarget>
         >::ResultType {
             using Adapter = TypeConversionAdapter<
-                String<TCapacity>,
+                String<TCapacity, TByteOperationsProvider>,
                 Detail::NormalizedType<TTarget>
             >;
 
@@ -335,21 +346,22 @@ namespace ESPressio::Bounded {
         }
 
         /// Dispatches an explicitly requested conversion from a source Type into this bounded String.
+        /// @tparam TSource Explicit conversion source Type.
         template<class TSource>
         auto CastFromImplementation(
             const TSource& source
         ) noexcept(
             TypeConversionAdapter<
                 Detail::NormalizedType<TSource>,
-                String<TCapacity>
+                String<TCapacity, TByteOperationsProvider>
             >::IsNoexcept
         ) -> typename TypeConversionAdapter<
             Detail::NormalizedType<TSource>,
-            String<TCapacity>
+            String<TCapacity, TByteOperationsProvider>
         >::ResultType {
             using Adapter = TypeConversionAdapter<
                 Detail::NormalizedType<TSource>,
-                String<TCapacity>
+                String<TCapacity, TByteOperationsProvider>
             >;
 
             static_assert(
@@ -389,17 +401,21 @@ namespace ESPressio::Bounded {
         }
 
         /// Copies a bounded String whose compile-time capacity cannot exceed this destination's capacity.
-        template<std::size_t TSourceCapacity, std::enable_if_t<(TSourceCapacity <= TCapacity && TSourceCapacity != TCapacity), int> = 0>
+        /// @tparam TSourceCapacity Compile-time capacity of the source bounded value.
+        /// @tparam TSourceByteOperationsProvider ByteOperations provider selected by the source bounded value.
+        template<std::size_t TSourceCapacity, class TSourceByteOperationsProvider, std::enable_if_t<(TSourceCapacity <= TCapacity), int> = 0>
         String(
-            const String<TSourceCapacity>& source
+            const String<TSourceCapacity, TSourceByteOperationsProvider>& source
         ) noexcept {
             CopyFromKnownValid(source);
         }
 
         /// Moves a bounded String whose compile-time capacity cannot exceed this destination's capacity and leaves the source empty.
-        template<std::size_t TSourceCapacity, std::enable_if_t<(TSourceCapacity <= TCapacity && TSourceCapacity != TCapacity), int> = 0>
+        /// @tparam TSourceCapacity Compile-time capacity of the source bounded value.
+        /// @tparam TSourceByteOperationsProvider ByteOperations provider selected by the source bounded value.
+        template<std::size_t TSourceCapacity, class TSourceByteOperationsProvider, std::enable_if_t<(TSourceCapacity <= TCapacity), int> = 0>
         String(
-            String<TSourceCapacity>&& source
+            String<TSourceCapacity, TSourceByteOperationsProvider>&& source
         ) noexcept {
             CopyFromKnownValid(source);
             source.Clear();
@@ -431,18 +447,22 @@ namespace ESPressio::Bounded {
         }
 
         /// Copies a bounded String whose compile-time capacity cannot exceed this destination's capacity.
-        template<std::size_t TSourceCapacity, std::enable_if_t<(TSourceCapacity <= TCapacity && TSourceCapacity != TCapacity), int> = 0>
+        /// @tparam TSourceCapacity Compile-time capacity of the source bounded value.
+        /// @tparam TSourceByteOperationsProvider ByteOperations provider selected by the source bounded value.
+        template<std::size_t TSourceCapacity, class TSourceByteOperationsProvider, std::enable_if_t<(TSourceCapacity <= TCapacity), int> = 0>
         String& operator=(
-            const String<TSourceCapacity>& source
+            const String<TSourceCapacity, TSourceByteOperationsProvider>& source
         ) noexcept {
             CopyFromKnownValid(source);
             return *this;
         }
 
         /// Moves a bounded String whose compile-time capacity cannot exceed this destination's capacity and leaves the source empty.
-        template<std::size_t TSourceCapacity, std::enable_if_t<(TSourceCapacity <= TCapacity && TSourceCapacity != TCapacity), int> = 0>
+        /// @tparam TSourceCapacity Compile-time capacity of the source bounded value.
+        /// @tparam TSourceByteOperationsProvider ByteOperations provider selected by the source bounded value.
+        template<std::size_t TSourceCapacity, class TSourceByteOperationsProvider, std::enable_if_t<(TSourceCapacity <= TCapacity), int> = 0>
         String& operator=(
-            String<TSourceCapacity>&& source
+            String<TSourceCapacity, TSourceByteOperationsProvider>&& source
         ) noexcept {
             CopyFromKnownValid(source);
             source.Clear();
@@ -534,9 +554,11 @@ namespace ESPressio::Bounded {
         // Complete-value assignment.
 
         /// Assigns another bounded String after validating this destination's runtime capacity.
-        template<std::size_t TSourceCapacity>
+        /// @tparam TSourceCapacity Compile-time capacity of the source bounded value.
+        /// @tparam TSourceByteOperationsProvider ByteOperations provider selected by the source bounded value.
+        template<std::size_t TSourceCapacity, class TSourceByteOperationsProvider>
         StringAssignmentResult Assign(
-            const String<TSourceCapacity>& source
+            const String<TSourceCapacity, TSourceByteOperationsProvider>& source
         ) noexcept {
             if (source.Size() > TCapacity) { return StringAssignmentResult::CapacityExceeded; }
 
@@ -576,6 +598,7 @@ namespace ESPressio::Bounded {
         }
 
         /// Assigns a null-terminated fixed character array after validating its terminator and payload.
+        /// @tparam TArraySize Fixed source array extent.
         template<std::size_t TArraySize>
         StringAssignmentResult Assign(
             const char (&source)[TArraySize]
@@ -599,9 +622,11 @@ namespace ESPressio::Bounded {
         // Append operations.
 
         /// Appends another bounded String without truncation.
-        template<std::size_t TSourceCapacity>
+        /// @tparam TSourceCapacity Compile-time capacity of the source bounded value.
+        /// @tparam TSourceByteOperationsProvider ByteOperations provider selected by the source bounded value.
+        template<std::size_t TSourceCapacity, class TSourceByteOperationsProvider>
         StringAppendResult Append(
-            const String<TSourceCapacity>& source
+            const String<TSourceCapacity, TSourceByteOperationsProvider>& source
         ) noexcept {
             return AppendBytes(
                 source.Data(),
@@ -641,6 +666,7 @@ namespace ESPressio::Bounded {
         }
 
         /// Appends a null-terminated fixed character array after validating its terminator and payload.
+        /// @tparam TArraySize Fixed source array extent.
         template<std::size_t TArraySize>
         StringAppendResult Append(
             const char (&source)[TArraySize]
@@ -664,10 +690,12 @@ namespace ESPressio::Bounded {
         // Insert operations.
 
         /// Inserts another bounded String at a checked logical index.
-        template<std::size_t TSourceCapacity>
+        /// @tparam TSourceCapacity Compile-time capacity of the source bounded value.
+        /// @tparam TSourceByteOperationsProvider ByteOperations provider selected by the source bounded value.
+        template<std::size_t TSourceCapacity, class TSourceByteOperationsProvider>
         StringInsertResult Insert(
             std::size_t index,
-            const String<TSourceCapacity>& source
+            const String<TSourceCapacity, TSourceByteOperationsProvider>& source
         ) noexcept {
             return InsertBytes(
                 index,
@@ -714,6 +742,7 @@ namespace ESPressio::Bounded {
         }
 
         /// Inserts a null-terminated fixed character array after validating its terminator and payload.
+        /// @tparam TArraySize Fixed source array extent.
         template<std::size_t TArraySize>
         StringInsertResult Insert(
             std::size_t index,
@@ -751,7 +780,7 @@ namespace ESPressio::Bounded {
 
             if (count == 0U) { return StringEraseResult::Succeeded; }
 
-            std::memmove(
+            ByteOperations::MoveBytes(
                 _storage.data() + index,
                 _storage.data() + index + count,
                 currentSize - index - count
@@ -813,33 +842,35 @@ namespace ESPressio::Bounded {
         // Explicit external-Type conversion.
 
         /// Converts this bounded String to a target Type through the target Type owner's compile-time adapter specialization.
+        /// @tparam TTarget Explicit conversion target Type.
         template<class TTarget>
         auto CastTo(
             TTarget& target
         ) const noexcept(
             TypeConversionAdapter<
-                String<TCapacity>,
+                String<TCapacity, TByteOperationsProvider>,
                 Detail::NormalizedType<TTarget>
             >::IsNoexcept
         ) -> typename TypeConversionAdapter<
-            String<TCapacity>,
+            String<TCapacity, TByteOperationsProvider>,
             Detail::NormalizedType<TTarget>
         >::ResultType {
             return CastToImplementation(target);
         }
 
         /// Converts a source Type into this bounded String through the source Type owner's compile-time adapter specialization.
+        /// @tparam TSource Explicit conversion source Type.
         template<class TSource>
         auto CastFrom(
             const TSource& source
         ) noexcept(
             TypeConversionAdapter<
                 Detail::NormalizedType<TSource>,
-                String<TCapacity>
+                String<TCapacity, TByteOperationsProvider>
             >::IsNoexcept
         ) -> typename TypeConversionAdapter<
             Detail::NormalizedType<TSource>,
-            String<TCapacity>
+            String<TCapacity, TByteOperationsProvider>
         >::ResultType {
             return CastFromImplementation(source);
         }
@@ -847,22 +878,27 @@ namespace ESPressio::Bounded {
         // Logical-value comparisons.
 
         /// Reports whether two bounded Strings contain identical logical payload bytes.
-        template<std::size_t TOtherCapacity>
+        /// @tparam TOtherCapacity Compile-time capacity of the compared bounded value.
+        /// @tparam TOtherByteOperationsProvider ByteOperations provider selected by the compared bounded value.
+        template<std::size_t TOtherCapacity, class TOtherByteOperationsProvider>
         bool operator==(
-            const String<TOtherCapacity>& other
+            const String<TOtherCapacity, TOtherByteOperationsProvider>& other
         ) const noexcept {
             if (Size() != other.Size()) { return false; }
 
-            for (std::size_t index = 0U; index < Size(); ++index)
-                if (_storage[index] != other[index]) { return false; }
-
-            return true;
+            return ByteOperations::CompareBytes(
+                _storage.data(),
+                other.Data(),
+                Size()
+            ) == ESPressio::Memory::ByteComparison::Equal;
         }
 
         /// Reports whether two bounded Strings contain different logical payload bytes.
-        template<std::size_t TOtherCapacity>
+        /// @tparam TOtherCapacity Compile-time capacity of the compared bounded value.
+        /// @tparam TOtherByteOperationsProvider ByteOperations provider selected by the compared bounded value.
+        template<std::size_t TOtherCapacity, class TOtherByteOperationsProvider>
         bool operator!=(
-            const String<TOtherCapacity>& other
+            const String<TOtherCapacity, TOtherByteOperationsProvider>& other
         ) const noexcept {
             return !(
                 *this ==
@@ -871,30 +907,34 @@ namespace ESPressio::Bounded {
         }
 
         /// Reports whether this String sorts lexicographically before another bounded String by payload byte value.
-        template<std::size_t TOtherCapacity>
+        /// @tparam TOtherCapacity Compile-time capacity of the compared bounded value.
+        /// @tparam TOtherByteOperationsProvider ByteOperations provider selected by the compared bounded value.
+        template<std::size_t TOtherCapacity, class TOtherByteOperationsProvider>
         bool operator<(
-            const String<TOtherCapacity>& other
+            const String<TOtherCapacity, TOtherByteOperationsProvider>& other
         ) const noexcept {
             const auto commonSize = Size() < other.Size()
                 ? Size()
                 : other.Size();
 
-            for (std::size_t index = 0U; index < commonSize; ++index) {
-                const auto left = static_cast<unsigned char>(_storage[index]);
-                const auto right = static_cast<unsigned char>(other[index]);
+            const auto comparison = ByteOperations::CompareBytes(
+                _storage.data(),
+                other.Data(),
+                commonSize
+            );
 
-                if (left < right) { return true; }
-
-                if (left > right) { return false; }
-            }
+            if (comparison == ESPressio::Memory::ByteComparison::Less) { return true; }
+            if (comparison == ESPressio::Memory::ByteComparison::Greater) { return false; }
 
             return Size() < other.Size();
         }
 
         /// Reports whether this String is lexicographically before or equal to another bounded String.
-        template<std::size_t TOtherCapacity>
+        /// @tparam TOtherCapacity Compile-time capacity of the compared bounded value.
+        /// @tparam TOtherByteOperationsProvider ByteOperations provider selected by the compared bounded value.
+        template<std::size_t TOtherCapacity, class TOtherByteOperationsProvider>
         bool operator<=(
-            const String<TOtherCapacity>& other
+            const String<TOtherCapacity, TOtherByteOperationsProvider>& other
         ) const noexcept {
             return !(
                 other <
@@ -903,17 +943,21 @@ namespace ESPressio::Bounded {
         }
 
         /// Reports whether this String sorts lexicographically after another bounded String.
-        template<std::size_t TOtherCapacity>
+        /// @tparam TOtherCapacity Compile-time capacity of the compared bounded value.
+        /// @tparam TOtherByteOperationsProvider ByteOperations provider selected by the compared bounded value.
+        template<std::size_t TOtherCapacity, class TOtherByteOperationsProvider>
         bool operator>(
-            const String<TOtherCapacity>& other
+            const String<TOtherCapacity, TOtherByteOperationsProvider>& other
         ) const noexcept {
             return other < *this;
         }
 
         /// Reports whether this String is lexicographically after or equal to another bounded String.
-        template<std::size_t TOtherCapacity>
+        /// @tparam TOtherCapacity Compile-time capacity of the compared bounded value.
+        /// @tparam TOtherByteOperationsProvider ByteOperations provider selected by the compared bounded value.
+        template<std::size_t TOtherCapacity, class TOtherByteOperationsProvider>
         bool operator>=(
-            const String<TOtherCapacity>& other
+            const String<TOtherCapacity, TOtherByteOperationsProvider>& other
         ) const noexcept {
             return !(
                 *this <
@@ -924,13 +968,17 @@ namespace ESPressio::Bounded {
     };
 
     /// Certifies every bounded String specialization as a self-contained memory-bounded value.
-    template<std::size_t TCapacity>
-    struct MemoryBoundedTraits<String<TCapacity>> : MemoryBoundedValueDeclaration<false> {
+    /// @tparam TCapacity Compile-time capacity of the bounded value.
+    /// @tparam TByteOperationsProvider Stateless ByteOperations provider selected by the bounded value.
+    template<std::size_t TCapacity, class TByteOperationsProvider>
+    struct MemoryBoundedTraits<String<TCapacity, TByteOperationsProvider>> : MemoryBoundedValueDeclaration<false> {
     };
 
     /// Exposes the compile-time payload-byte capacity of a bounded String.
-    template<std::size_t TCapacity>
-    struct CapacityTraits<String<TCapacity>> {
+    /// @tparam TCapacity Compile-time capacity of the bounded value.
+    /// @tparam TByteOperationsProvider Stateless ByteOperations provider selected by the bounded value.
+    template<std::size_t TCapacity, class TByteOperationsProvider>
+    struct CapacityTraits<String<TCapacity, TByteOperationsProvider>> {
 
         /// Bounded String capacity is known at compile time.
         static constexpr bool HasStaticCapacity = true;

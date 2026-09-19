@@ -48,6 +48,105 @@ void operator delete(
 
 namespace TestSupport {
 
+    namespace Memory = ESPressio::Memory;
+    namespace Framework = ESPressio::System::CompositionFramework;
+    namespace PortableMemory = ESPressio::Platform::Portable::Memory;
+
+    /// Stateless ByteOperations provider used to prove compile-time provider substitution.
+    class CountingByteOperationsProvider final : public Framework::Provider<
+        Memory::Domain,
+        Framework::Provides<
+            Framework::Offer<Memory::ByteOperations>
+        >
+    > {
+
+        public:
+
+            // Operation counters.
+
+            /// Counts CopyBytes calls made through this test provider.
+            static std::size_t CopyCount;
+
+            /// Counts MoveBytes calls made through this test provider.
+            static std::size_t MoveCount;
+
+            /// Counts FillBytes calls made through this test provider.
+            static std::size_t FillCount;
+
+            /// Counts CompareBytes calls made through this test provider.
+            static std::size_t CompareCount;
+
+
+            // Byte operations.
+
+            /// Copies one non-overlapping byte range.
+            void CopyBytes(
+                void* destination,
+                const void* source,
+                std::size_t byteCount
+            ) const noexcept {
+                ++CopyCount;
+
+                PortableMemory::ByteOperationsProvider{}.CopyBytes(
+                    destination,
+                    source,
+                    byteCount
+                );
+            }
+
+            /// Moves one byte range while permitting source/destination overlap.
+            void MoveBytes(
+                void* destination,
+                const void* source,
+                std::size_t byteCount
+            ) const noexcept {
+                ++MoveCount;
+
+                PortableMemory::ByteOperationsProvider{}.MoveBytes(
+                    destination,
+                    source,
+                    byteCount
+                );
+            }
+
+            /// Fills one byte range.
+            void FillBytes(
+                void* destination,
+                std::uint8_t value,
+                std::size_t byteCount
+            ) const noexcept {
+                ++FillCount;
+
+                PortableMemory::ByteOperationsProvider{}.FillBytes(
+                    destination,
+                    value,
+                    byteCount
+                );
+            }
+
+            /// Compares two ranges as unsigned bytes.
+            Memory::ByteComparison CompareBytes(
+                const void* left,
+                const void* right,
+                std::size_t byteCount
+            ) const noexcept {
+                ++CompareCount;
+
+                return PortableMemory::ByteOperationsProvider{}.CompareBytes(
+                    left,
+                    right,
+                    byteCount
+                );
+            }
+
+    };
+
+    std::size_t CountingByteOperationsProvider::CopyCount = 0U;
+    std::size_t CountingByteOperationsProvider::MoveCount = 0U;
+    std::size_t CountingByteOperationsProvider::FillCount = 0U;
+    std::size_t CountingByteOperationsProvider::CompareCount = 0U;
+
+
     /// Tracks non-trivial object lifetime and move behavior while remaining fully memory-bounded.
     class LifetimeValue final {
 
@@ -586,6 +685,59 @@ namespace {
         assert(target.Data[5U] == '\0');
     }
 
+
+    /// Verifies ByteOperations abstraction routing, provider substitution, cross-provider copying, and zero per-object provider state.
+    void TestByteOperationsProviderSubstitution() {
+        using Provider = TestSupport::CountingByteOperationsProvider;
+
+        static_assert(sizeof(String<16U, Provider>) == sizeof(String<16U>));
+        static_assert(sizeof(Bytes<16U, Provider>) == sizeof(Bytes<16U>));
+        static_assert(IsMemoryBoundedValue<String<16U, Provider>>);
+        static_assert(IsMemoryBoundedValue<Bytes<16U, Provider>>);
+        static_assert(CapacityTraits<String<16U, Provider>>::Capacity == 16U);
+        static_assert(CapacityTraits<Bytes<16U, Provider>>::Capacity == 16U);
+
+        Provider::CopyCount = 0U;
+        Provider::MoveCount = 0U;
+        Provider::FillCount = 0U;
+        Provider::CompareCount = 0U;
+
+        String<16U> defaultText;
+        assert(defaultText.Assign("hello") == StringAssignmentResult::Succeeded);
+
+        String<16U, Provider> customText(
+            defaultText
+        );
+        assert(customText == defaultText);
+        assert(customText.Append(
+            customText.View()
+        ) == StringAppendResult::Succeeded);
+
+        const std::array<std::uint8_t, 3U> source = {
+            1U,
+            2U,
+            3U
+        };
+
+        Bytes<16U, Provider> customBytes;
+        assert(customBytes.Assign(source) == BytesAssignmentResult::Succeeded);
+        assert(customBytes.Resize(
+            6U,
+            0xA5U
+        ) == BytesResizeResult::Succeeded);
+
+        Bytes<16U> defaultBytes;
+        assert(defaultBytes.Assign(
+            customBytes.Data(),
+            customBytes.Size()
+        ) == BytesAssignmentResult::Succeeded);
+        assert(customBytes == defaultBytes);
+
+        assert(Provider::MoveCount > 0U);
+        assert(Provider::FillCount > 0U);
+        assert(Provider::CompareCount > 0U);
+    }
+
     /// Verifies that representative bounded operations perform no host heap allocation.
     void TestNoHeapOperations() {
         const auto allocationsBefore = AllocationCount;
@@ -636,6 +788,7 @@ int main() {
     TestSet();
     TestMap();
     TestConversionAdapters();
+    TestByteOperationsProviderSubstitution();
     TestNoHeapOperations();
 
     return 0;

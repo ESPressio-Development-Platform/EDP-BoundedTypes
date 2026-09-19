@@ -1,21 +1,34 @@
 # EDP-BoundedTypes Dependency Graph
 
-`EDP-BoundedTypes` is a foundational, header-only library. It intentionally has no mandatory or optional dependency on any other ESPressio library, platform SDK, framework, or third-party library.
-
-## Graph
+## Library Dependency Tree
 
 ```text
 EDP-BoundedTypes
-└── C++17 Standard Library
+├── EDP-Memory [mandatory]
+│   ├── EDP-System [mandatory]
+│   └── EDP-Platform [mandatory]
+│       └── EDP-System [mandatory, transitive]
+└── EDP-Platform-Portable [mandatory]
+    ├── EDP-Platform [mandatory]
+    │   └── EDP-System [mandatory]
+    └── EDP-Memory [mandatory]
+        ├── EDP-System [mandatory]
+        └── EDP-Platform [mandatory]
+            └── EDP-System [mandatory, transitive]
 ```
 
 ## Mandatory Dependencies
 
-- C++17 Standard Library
+- `EDP-Memory` — defines the `ByteOperations` abstraction and provider contract consumed by bounded String/Bytes raw byte movement, filling, and comparison.
+- `EDP-Platform-Portable` — supplies the default Standard C/C++ `ByteOperationsProvider` used by ordinary `String<N>` and `Bytes<N>` declarations.
+
+`EDP-System` and `EDP-Platform` are reached transitively through the Memory/Portable provider stack.
+
+The dependency remains acyclic: neither `EDP-Memory` nor `EDP-Platform-Portable` depends on `EDP-BoundedTypes`.
 
 ## Optional Dependencies
 
-None.
+`EDP-BoundedTypes` has no optional ESPressio-library dependencies.
 
 ## Reverse Integration Dependencies
 
@@ -29,4 +42,4 @@ EDP-Platform-Arduino
     condition: Arduino String / Bounded String conversion integration is included or used
 ```
 
-That reverse optional integration does not alter the dependency graph of this repository.
+That reverse optional integration does not alter this repository's dependency direction.

@@ -15,6 +15,38 @@ They differ in value semantics: String is text-oriented and forbids embedded nul
 
 ---
 
+## ByteOperations Provider
+
+Raw byte movement, filling, and comparison are expressed through the `EDP-Memory::ByteOperations` abstraction rather than owned directly as Standard C/C++ memory calls inside this repository.
+
+The public templates accept an optional compile-time provider Type:
+
+```cpp
+template<
+    std::size_t TCapacity,
+    class TByteOperationsProvider = Detail::DefaultByteOperationsProvider
+>
+class String;
+
+template<
+    std::size_t TCapacity,
+    class TByteOperationsProvider = Detail::DefaultByteOperationsProvider
+>
+class Bytes;
+```
+
+Ordinary `String<N>` and `Bytes<N>` declarations remain unchanged and select the Standard C/C++ provider owned by `EDP-Platform-Portable`.
+
+A custom provider may be selected at compile time when it:
+
+- satisfies the EDP-Memory ByteOperations provider contract;
+- is stateless/empty;
+- is nothrow default constructible.
+
+String/Bytes retain no provider pointer or provider object, so provider selection adds no per-object runtime RAM state. Cross-capacity/cross-provider operations use the destination/current object's selected provider.
+
+---
+
 ## String<N>
 
 `String<N>` stores at most `N` logical payload bytes.
@@ -147,7 +179,7 @@ value.Append(
 
 is supported when capacity permits.
 
-The implementation uses overlap-safe movement rather than allocating a full scratch buffer.
+The implementation delegates overlap-safe movement to the selected `ByteOperations::MoveBytes` provider operation rather than allocating a full scratch buffer.
 
 ---
 
@@ -185,7 +217,7 @@ String supports logical-value comparison across different capacities:
 >=
 ```
 
-Comparison uses only logical payload length and bytes. Unused capacity and the implicit terminator do not participate.
+Comparison uses only logical payload length and bytes. Unused capacity and the implicit terminator do not participate. Lexicographical byte comparison is delegated to the current object's selected ByteOperations provider.
 
 Same-capacity and compile-time-safe widening assignment are supported.
 
@@ -239,7 +271,7 @@ Resize
 Clear
 ```
 
-Growing `Resize()` initializes every newly active byte. It never exposes stale inactive storage.
+Growing `Resize()` initializes every newly active byte through `ByteOperations::FillBytes`. It never exposes stale inactive storage.
 
 ---
 
@@ -283,6 +315,8 @@ Dynamic source storage is accepted only as input. The bounded destination retain
 Platform- or framework-specific conversions are not implemented inside this repository.
 
 Both String and Bytes expose the generic `CastTo<T>()` / `CastFrom<T>()` mechanism backed by `TypeConversionAdapter`.
+
+Existing adapters written for `String<N>` / `Bytes<N>` continue to target the default Portable ByteOperations specialization. Integrations intentionally using a custom provider Type may provide correspondingly generic adapter specializations.
 
 The external Type's owning library supplies the specialization.
 

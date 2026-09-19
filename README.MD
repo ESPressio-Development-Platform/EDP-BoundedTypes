@@ -2,7 +2,7 @@
 
 `EDP-BoundedTypes` provides strongly memory-bounded, allocation-free value and container Types for the ESPressio Development Platform.
 
-The library is intentionally independent of every other ESPressio library. Its purpose is to make maximum owned memory usage explicit at compile time while keeping mutation deterministic and free from hidden heap growth.
+The library makes maximum owned memory usage explicit at compile time while keeping mutation deterministic and free from hidden heap growth. Raw byte movement/fill/comparison used by `String` and `Bytes` is consumed through the `EDP-Memory::ByteOperations` abstraction; the ordinary default concrete provider is the Standard C/C++ implementation owned by `EDP-Platform-Portable`.
 
 ## Contents
 
@@ -12,7 +12,7 @@ The following bounded-memory facilities are currently provided:
   Defines whole-object owned-memory boundedness, recursive certification, external lifetime dependencies, failure guarantees, zero-capacity behavior, and the distinction between memory boundedness and serialization/schema boundedness.
 
 - [String and Bytes](./docs/STRING-AND-BYTES.MD)  
-  Documents `String<N>` and `Bytes<N>`, including capacity semantics, null handling, mutation/result behavior, operators, views, assignment, and conversion boundaries.
+  Documents `String<N>` and `Bytes<N>`, including capacity semantics, null handling, mutation/result behavior, byte-operation provider substitution, operators, views, assignment, and conversion boundaries.
 
 - [Sequence Containers](./docs/SEQUENCE-CONTAINERS.MD)  
   Documents `Vector`, `Deque`, `Queue`, `Stack`, and `CircularBuffer`, including raw-slot lifetime rules, operation-specific `noexcept` requirements, iterator semantics, invalidation, and explicit overwrite behavior.
@@ -32,6 +32,8 @@ The following bounded-memory facilities are currently provided:
 - Capacity failure never silently truncates input.
 - A reported non-success result leaves the destination logical value unchanged.
 - Moved-from bounded containers have a deterministic empty state.
+- `String`/`Bytes` raw memory operations consume `EDP-Memory::ByteOperations`; Standard C/C++ memory primitives are not owned directly by this repository.
+- The default ByteOperations policy stores no provider object or pointer in each bounded value, so provider integration adds no per-object RAM overhead.
 - Platform-specific conversion support is owned by the library exposing the external Type, never by `EDP-BoundedTypes`.
 - The library targets C++17 and performs no dynamic allocation internally.
 
@@ -49,6 +51,8 @@ Set<T,N>
 Map<K,V,N>
 ```
 
+`String` and `Bytes` additionally accept an optional compile-time stateless ByteOperations provider Type. The default remains `EDP-Platform-Portable::Memory::ByteOperationsProvider`, so ordinary one-argument declarations are unchanged.
+
 Every capacity-bearing Type exposes the common vocabulary:
 
 ```cpp
@@ -65,12 +69,22 @@ The exact mutation surface remains Type-specific.
 
 ```text
 EDP-BoundedTypes
-└── C++17 Standard Library
+├── EDP-Memory [mandatory]
+│   ├── EDP-System [mandatory]
+│   └── EDP-Platform [mandatory]
+│       └── EDP-System [mandatory, transitive]
+└── EDP-Platform-Portable [mandatory]
+    ├── EDP-Platform [mandatory]
+    │   └── EDP-System [mandatory]
+    └── EDP-Memory [mandatory]
+        ├── EDP-System [mandatory]
+        └── EDP-Platform [mandatory]
+            └── EDP-System [mandatory, transitive]
 ```
 
-There are no mandatory or optional ESPressio-library dependencies.
+`EDP-Memory` defines the ByteOperations abstraction. `EDP-Platform-Portable` supplies the default Standard C/C++ provider selected by ordinary `String<N>` / `Bytes<N>` declarations.
 
-External integration libraries may depend **toward** `EDP-BoundedTypes`. For example, `EDP-Platform-Arduino` optionally supplies the Arduino `String` / `Bounded::String<N>` conversion adapters. That reverse integration does not create a dependency from this repository back to Arduino.
+External integration libraries may depend **toward** `EDP-BoundedTypes`. For example, `EDP-Platform-Arduino` optionally supplies Arduino `String` / `Bounded::String<N>` conversion adapters. That reverse integration does not create a dependency from this repository back to Arduino.
 
 See [DEPENDENCY_GRAPH.MD](./DEPENDENCY_GRAPH.MD) for the maintained dependency graph.
 
@@ -91,6 +105,6 @@ Each logical demo is represented for:
 
 ## Testing
 
-Host tests cover capacity boundaries, zero-capacity behavior, String invariants, binary data, non-trivial object lifetimes, moved-from empty semantics, ring behavior, associative semantics, trait qualification, and compile-fail cases for invalid contained Types.
+Host tests cover capacity boundaries, zero-capacity behavior, String invariants, binary data, ByteOperations provider substitution, absence of provider-related per-object size overhead, non-trivial object lifetimes, moved-from empty semantics, ring behavior, associative semantics, trait qualification, and compile-fail cases for invalid contained/provider Types.
 
 The library is header-only and requires C++17.

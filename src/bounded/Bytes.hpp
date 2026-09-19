@@ -3,7 +3,6 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
-#include <cstring>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -11,6 +10,7 @@
 #include "CapacityTraits.hpp"
 #include "MemoryBoundedTraits.hpp"
 #include "TypeConversionAdapter.hpp"
+#include "detail/ByteOperationsPolicy.hpp"
 #include "detail/CapacityValidation.hpp"
 #include "detail/SizeCounter.hpp"
 #include "detail/TypeNormalization.hpp"
@@ -71,10 +71,18 @@ namespace ESPressio::Bounded {
     };
 
     /// Stores a variable-length byte sequence with compile-time capacity, fully inline storage, and no dynamic allocation.
-    template<std::size_t TCapacity>
+    /// @tparam TCapacity Maximum logical capacity in bytes.
+    /// @tparam TByteOperationsProvider Stateless EDP-Memory ByteOperations provider selected at compile time.
+    template<
+        std::size_t TCapacity,
+        class TByteOperationsProvider = Detail::DefaultByteOperationsProvider
+    >
     class Bytes final {
 
     private:
+
+        /// Compile-time zero-state raw byte-operation policy used by these bounded Bytes.
+        using ByteOperations = Detail::ByteOperationsPolicy<TByteOperationsProvider>;
 
         // Storage state.
 
@@ -118,14 +126,16 @@ namespace ESPressio::Bounded {
         // Internal mutation helpers.
 
         /// Copies a known-valid bounded Bytes payload without performing fallible validation.
-        template<std::size_t TSourceCapacity>
+        /// @tparam TSourceCapacity Compile-time capacity of the source bounded value.
+        /// @tparam TSourceByteOperationsProvider ByteOperations provider selected by the source bounded value.
+        template<std::size_t TSourceCapacity, class TSourceByteOperationsProvider>
         void CopyFromKnownValid(
-            const Bytes<TSourceCapacity>& source
+            const Bytes<TSourceCapacity, TSourceByteOperationsProvider>& source
         ) noexcept {
             const auto sourceSize = source.Size();
 
             if (sourceSize > 0U) {
-                std::memmove(
+                ByteOperations::MoveBytes(
                     _storage.data(),
                     source.Data(),
                     sourceSize
@@ -147,7 +157,7 @@ namespace ESPressio::Bounded {
             }
 
             if (length > 0U) {
-                std::memmove(
+                ByteOperations::MoveBytes(
                     _storage.data(),
                     source,
                     length
@@ -170,7 +180,7 @@ namespace ESPressio::Bounded {
             const auto previousSize = Size();
 
             if (length > 0U) {
-                std::memmove(
+                ByteOperations::MoveBytes(
                     _storage.data() + previousSize,
                     source,
                     length
@@ -204,26 +214,26 @@ namespace ESPressio::Bounded {
                 sourceOffset
             );
 
-            std::memmove(
+            ByteOperations::MoveBytes(
                 _storage.data() + index + length,
                 _storage.data() + index,
                 previousSize - index
             );
 
             if (!sourceAliasesPayload) {
-                std::memmove(
+                ByteOperations::MoveBytes(
                     _storage.data() + index,
                     source,
                     length
                 );
             } else if (sourceOffset + length <= index) {
-                std::memmove(
+                ByteOperations::MoveBytes(
                     _storage.data() + index,
                     _storage.data() + sourceOffset,
                     length
                 );
             } else if (sourceOffset >= index) {
-                std::memmove(
+                ByteOperations::MoveBytes(
                     _storage.data() + index,
                     _storage.data() + sourceOffset + length,
                     length
@@ -233,7 +243,7 @@ namespace ESPressio::Bounded {
                 const auto suffixLength = length - prefixLength;
 
                 if (prefixLength > 0U) {
-                    std::memmove(
+                    ByteOperations::MoveBytes(
                         _storage.data() + index,
                         _storage.data() + sourceOffset,
                         prefixLength
@@ -241,7 +251,7 @@ namespace ESPressio::Bounded {
                 }
 
                 if (suffixLength > 0U) {
-                    std::memmove(
+                    ByteOperations::MoveBytes(
                         _storage.data() + index + prefixLength,
                         _storage.data() + index + length,
                         suffixLength
@@ -274,17 +284,21 @@ namespace ESPressio::Bounded {
         }
 
         /// Copies bounded Bytes whose compile-time capacity cannot exceed this destination's capacity.
-        template<std::size_t TSourceCapacity, std::enable_if_t<(TSourceCapacity <= TCapacity && TSourceCapacity != TCapacity), int> = 0>
+        /// @tparam TSourceCapacity Compile-time capacity of the source bounded value.
+        /// @tparam TSourceByteOperationsProvider ByteOperations provider selected by the source bounded value.
+        template<std::size_t TSourceCapacity, class TSourceByteOperationsProvider, std::enable_if_t<(TSourceCapacity <= TCapacity), int> = 0>
         Bytes(
-            const Bytes<TSourceCapacity>& source
+            const Bytes<TSourceCapacity, TSourceByteOperationsProvider>& source
         ) noexcept {
             CopyFromKnownValid(source);
         }
 
         /// Moves bounded Bytes whose compile-time capacity cannot exceed this destination's capacity and leaves the source empty.
-        template<std::size_t TSourceCapacity, std::enable_if_t<(TSourceCapacity <= TCapacity && TSourceCapacity != TCapacity), int> = 0>
+        /// @tparam TSourceCapacity Compile-time capacity of the source bounded value.
+        /// @tparam TSourceByteOperationsProvider ByteOperations provider selected by the source bounded value.
+        template<std::size_t TSourceCapacity, class TSourceByteOperationsProvider, std::enable_if_t<(TSourceCapacity <= TCapacity), int> = 0>
         Bytes(
-            Bytes<TSourceCapacity>&& source
+            Bytes<TSourceCapacity, TSourceByteOperationsProvider>&& source
         ) noexcept {
             CopyFromKnownValid(source);
             source.Clear();
@@ -316,18 +330,22 @@ namespace ESPressio::Bounded {
         }
 
         /// Copies bounded Bytes whose compile-time capacity cannot exceed this destination's capacity.
-        template<std::size_t TSourceCapacity, std::enable_if_t<(TSourceCapacity <= TCapacity && TSourceCapacity != TCapacity), int> = 0>
+        /// @tparam TSourceCapacity Compile-time capacity of the source bounded value.
+        /// @tparam TSourceByteOperationsProvider ByteOperations provider selected by the source bounded value.
+        template<std::size_t TSourceCapacity, class TSourceByteOperationsProvider, std::enable_if_t<(TSourceCapacity <= TCapacity), int> = 0>
         Bytes& operator=(
-            const Bytes<TSourceCapacity>& source
+            const Bytes<TSourceCapacity, TSourceByteOperationsProvider>& source
         ) noexcept {
             CopyFromKnownValid(source);
             return *this;
         }
 
         /// Moves bounded Bytes whose compile-time capacity cannot exceed this destination's capacity and leaves the source empty.
-        template<std::size_t TSourceCapacity, std::enable_if_t<(TSourceCapacity <= TCapacity && TSourceCapacity != TCapacity), int> = 0>
+        /// @tparam TSourceCapacity Compile-time capacity of the source bounded value.
+        /// @tparam TSourceByteOperationsProvider ByteOperations provider selected by the source bounded value.
+        template<std::size_t TSourceCapacity, class TSourceByteOperationsProvider, std::enable_if_t<(TSourceCapacity <= TCapacity), int> = 0>
         Bytes& operator=(
-            Bytes<TSourceCapacity>&& source
+            Bytes<TSourceCapacity, TSourceByteOperationsProvider>&& source
         ) noexcept {
             CopyFromKnownValid(source);
             source.Clear();
@@ -445,9 +463,11 @@ namespace ESPressio::Bounded {
         // Complete-value assignment.
 
         /// Assigns another bounded byte sequence after validating this destination's runtime capacity.
-        template<std::size_t TSourceCapacity>
+        /// @tparam TSourceCapacity Compile-time capacity of the source bounded value.
+        /// @tparam TSourceByteOperationsProvider ByteOperations provider selected by the source bounded value.
+        template<std::size_t TSourceCapacity, class TSourceByteOperationsProvider>
         BytesAssignmentResult Assign(
-            const Bytes<TSourceCapacity>& source
+            const Bytes<TSourceCapacity, TSourceByteOperationsProvider>& source
         ) noexcept {
             if (source.Size() > TCapacity) { return BytesAssignmentResult::CapacityExceeded; }
 
@@ -456,6 +476,7 @@ namespace ESPressio::Bounded {
         }
 
         /// Assigns a fixed standard byte array.
+        /// @tparam TArraySize Fixed source array extent.
         template<std::size_t TArraySize>
         BytesAssignmentResult Assign(
             const std::array<std::uint8_t, TArraySize>& source
@@ -490,9 +511,11 @@ namespace ESPressio::Bounded {
         // Append operations.
 
         /// Appends another bounded byte sequence without truncation.
-        template<std::size_t TSourceCapacity>
+        /// @tparam TSourceCapacity Compile-time capacity of the source bounded value.
+        /// @tparam TSourceByteOperationsProvider ByteOperations provider selected by the source bounded value.
+        template<std::size_t TSourceCapacity, class TSourceByteOperationsProvider>
         BytesAppendResult Append(
-            const Bytes<TSourceCapacity>& source
+            const Bytes<TSourceCapacity, TSourceByteOperationsProvider>& source
         ) noexcept {
             return AppendBytes(
                 source.Data(),
@@ -501,6 +524,7 @@ namespace ESPressio::Bounded {
         }
 
         /// Appends a fixed standard byte array without truncation.
+        /// @tparam TArraySize Fixed source array extent.
         template<std::size_t TArraySize>
         BytesAppendResult Append(
             const std::array<std::uint8_t, TArraySize>& source
@@ -535,10 +559,12 @@ namespace ESPressio::Bounded {
         // Insert operations.
 
         /// Inserts another bounded byte sequence at a checked logical index.
-        template<std::size_t TSourceCapacity>
+        /// @tparam TSourceCapacity Compile-time capacity of the source bounded value.
+        /// @tparam TSourceByteOperationsProvider ByteOperations provider selected by the source bounded value.
+        template<std::size_t TSourceCapacity, class TSourceByteOperationsProvider>
         BytesInsertResult Insert(
             std::size_t index,
-            const Bytes<TSourceCapacity>& source
+            const Bytes<TSourceCapacity, TSourceByteOperationsProvider>& source
         ) noexcept {
             return InsertBytes(
                 index,
@@ -548,6 +574,7 @@ namespace ESPressio::Bounded {
         }
 
         /// Inserts a fixed standard byte array at a checked logical index.
+        /// @tparam TArraySize Fixed source array extent.
         template<std::size_t TArraySize>
         BytesInsertResult Insert(
             std::size_t index,
@@ -600,7 +627,7 @@ namespace ESPressio::Bounded {
 
             if (count == 0U) { return BytesEraseResult::Succeeded; }
 
-            std::memmove(
+            ByteOperations::MoveBytes(
                 _storage.data() + index,
                 _storage.data() + index + count,
                 currentSize - index - count
@@ -640,8 +667,11 @@ namespace ESPressio::Bounded {
             const auto previousSize = Size();
 
             if (newSize > previousSize) {
-                for (std::size_t index = previousSize; index < newSize; ++index)
-                    _storage[index] = fillValue;
+                ByteOperations::FillBytes(
+                    _storage.data() + previousSize,
+                    fillValue,
+                    newSize - previousSize
+                );
             }
 
             _size = static_cast<Detail::SizeCounter<TCapacity>>(newSize);
@@ -656,20 +686,21 @@ namespace ESPressio::Bounded {
         // Explicit external-Type conversion.
 
         /// Converts this bounded byte sequence to a target Type through the target Type owner's compile-time adapter specialization.
+        /// @tparam TTarget Explicit conversion target Type.
         template<class TTarget>
         auto CastTo(
             TTarget& target
         ) const noexcept(
             TypeConversionAdapter<
-                Bytes<TCapacity>,
+                Bytes<TCapacity, TByteOperationsProvider>,
                 Detail::NormalizedType<TTarget>
             >::IsNoexcept
         ) -> typename TypeConversionAdapter<
-            Bytes<TCapacity>,
+            Bytes<TCapacity, TByteOperationsProvider>,
             Detail::NormalizedType<TTarget>
         >::ResultType {
             using Adapter = TypeConversionAdapter<
-                Bytes<TCapacity>,
+                Bytes<TCapacity, TByteOperationsProvider>,
                 Detail::NormalizedType<TTarget>
             >;
 
@@ -685,21 +716,22 @@ namespace ESPressio::Bounded {
         }
 
         /// Converts a source Type into this bounded byte sequence through the source Type owner's compile-time adapter specialization.
+        /// @tparam TSource Explicit conversion source Type.
         template<class TSource>
         auto CastFrom(
             const TSource& source
         ) noexcept(
             TypeConversionAdapter<
                 Detail::NormalizedType<TSource>,
-                Bytes<TCapacity>
+                Bytes<TCapacity, TByteOperationsProvider>
             >::IsNoexcept
         ) -> typename TypeConversionAdapter<
             Detail::NormalizedType<TSource>,
-            Bytes<TCapacity>
+            Bytes<TCapacity, TByteOperationsProvider>
         >::ResultType {
             using Adapter = TypeConversionAdapter<
                 Detail::NormalizedType<TSource>,
-                Bytes<TCapacity>
+                Bytes<TCapacity, TByteOperationsProvider>
             >;
 
             static_assert(
@@ -716,22 +748,27 @@ namespace ESPressio::Bounded {
         // Logical-value comparisons.
 
         /// Reports whether two bounded byte sequences contain identical logical bytes.
-        template<std::size_t TOtherCapacity>
+        /// @tparam TOtherCapacity Compile-time capacity of the compared bounded value.
+        /// @tparam TOtherByteOperationsProvider ByteOperations provider selected by the compared bounded value.
+        template<std::size_t TOtherCapacity, class TOtherByteOperationsProvider>
         bool operator==(
-            const Bytes<TOtherCapacity>& other
+            const Bytes<TOtherCapacity, TOtherByteOperationsProvider>& other
         ) const noexcept {
             if (Size() != other.Size()) { return false; }
 
-            for (std::size_t index = 0U; index < Size(); ++index)
-                if (_storage[index] != other[index]) { return false; }
-
-            return true;
+            return ByteOperations::CompareBytes(
+                _storage.data(),
+                other.Data(),
+                Size()
+            ) == ESPressio::Memory::ByteComparison::Equal;
         }
 
         /// Reports whether two bounded byte sequences contain different logical bytes.
-        template<std::size_t TOtherCapacity>
+        /// @tparam TOtherCapacity Compile-time capacity of the compared bounded value.
+        /// @tparam TOtherByteOperationsProvider ByteOperations provider selected by the compared bounded value.
+        template<std::size_t TOtherCapacity, class TOtherByteOperationsProvider>
         bool operator!=(
-            const Bytes<TOtherCapacity>& other
+            const Bytes<TOtherCapacity, TOtherByteOperationsProvider>& other
         ) const noexcept {
             return !(
                 *this ==
@@ -740,27 +777,34 @@ namespace ESPressio::Bounded {
         }
 
         /// Reports whether this byte sequence sorts lexicographically before another sequence.
-        template<std::size_t TOtherCapacity>
+        /// @tparam TOtherCapacity Compile-time capacity of the compared bounded value.
+        /// @tparam TOtherByteOperationsProvider ByteOperations provider selected by the compared bounded value.
+        template<std::size_t TOtherCapacity, class TOtherByteOperationsProvider>
         bool operator<(
-            const Bytes<TOtherCapacity>& other
+            const Bytes<TOtherCapacity, TOtherByteOperationsProvider>& other
         ) const noexcept {
             const auto commonSize = Size() < other.Size()
                 ? Size()
                 : other.Size();
 
-            for (std::size_t index = 0U; index < commonSize; ++index) {
-                if (_storage[index] < other[index]) { return true; }
+            const auto comparison = ByteOperations::CompareBytes(
+                _storage.data(),
+                other.Data(),
+                commonSize
+            );
 
-                if (_storage[index] > other[index]) { return false; }
-            }
+            if (comparison == ESPressio::Memory::ByteComparison::Less) { return true; }
+            if (comparison == ESPressio::Memory::ByteComparison::Greater) { return false; }
 
             return Size() < other.Size();
         }
 
         /// Reports whether this byte sequence is lexicographically before or equal to another sequence.
-        template<std::size_t TOtherCapacity>
+        /// @tparam TOtherCapacity Compile-time capacity of the compared bounded value.
+        /// @tparam TOtherByteOperationsProvider ByteOperations provider selected by the compared bounded value.
+        template<std::size_t TOtherCapacity, class TOtherByteOperationsProvider>
         bool operator<=(
-            const Bytes<TOtherCapacity>& other
+            const Bytes<TOtherCapacity, TOtherByteOperationsProvider>& other
         ) const noexcept {
             return !(
                 other <
@@ -769,17 +813,21 @@ namespace ESPressio::Bounded {
         }
 
         /// Reports whether this byte sequence sorts lexicographically after another sequence.
-        template<std::size_t TOtherCapacity>
+        /// @tparam TOtherCapacity Compile-time capacity of the compared bounded value.
+        /// @tparam TOtherByteOperationsProvider ByteOperations provider selected by the compared bounded value.
+        template<std::size_t TOtherCapacity, class TOtherByteOperationsProvider>
         bool operator>(
-            const Bytes<TOtherCapacity>& other
+            const Bytes<TOtherCapacity, TOtherByteOperationsProvider>& other
         ) const noexcept {
             return other < *this;
         }
 
         /// Reports whether this byte sequence is lexicographically after or equal to another sequence.
-        template<std::size_t TOtherCapacity>
+        /// @tparam TOtherCapacity Compile-time capacity of the compared bounded value.
+        /// @tparam TOtherByteOperationsProvider ByteOperations provider selected by the compared bounded value.
+        template<std::size_t TOtherCapacity, class TOtherByteOperationsProvider>
         bool operator>=(
-            const Bytes<TOtherCapacity>& other
+            const Bytes<TOtherCapacity, TOtherByteOperationsProvider>& other
         ) const noexcept {
             return !(
                 *this <
@@ -790,13 +838,17 @@ namespace ESPressio::Bounded {
     };
 
     /// Certifies every bounded Bytes specialization as a self-contained memory-bounded value.
-    template<std::size_t TCapacity>
-    struct MemoryBoundedTraits<Bytes<TCapacity>> : MemoryBoundedValueDeclaration<false> {
+    /// @tparam TCapacity Compile-time capacity of the bounded value.
+    /// @tparam TByteOperationsProvider Stateless ByteOperations provider selected by the bounded value.
+    template<std::size_t TCapacity, class TByteOperationsProvider>
+    struct MemoryBoundedTraits<Bytes<TCapacity, TByteOperationsProvider>> : MemoryBoundedValueDeclaration<false> {
     };
 
     /// Exposes the compile-time byte capacity of bounded Bytes.
-    template<std::size_t TCapacity>
-    struct CapacityTraits<Bytes<TCapacity>> {
+    /// @tparam TCapacity Compile-time capacity of the bounded value.
+    /// @tparam TByteOperationsProvider Stateless ByteOperations provider selected by the bounded value.
+    template<std::size_t TCapacity, class TByteOperationsProvider>
+    struct CapacityTraits<Bytes<TCapacity, TByteOperationsProvider>> {
 
         /// Bounded Bytes capacity is known at compile time.
         static constexpr bool HasStaticCapacity = true;

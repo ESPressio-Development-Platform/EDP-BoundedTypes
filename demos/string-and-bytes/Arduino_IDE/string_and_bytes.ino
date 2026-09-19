@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <ESPressio_BoundedTypes.hpp>
+#include <memory/ByteOperationsProvider.hpp>
 
 using ESPressio::Bounded::Bytes;
 using ESPressio::Bounded::BytesPushBackResult;
@@ -7,11 +8,13 @@ using ESPressio::Bounded::String;
 using ESPressio::Bounded::StringAppendResult;
 using ESPressio::Bounded::StringAssignmentResult;
 
+using ByteOperationsProvider = ESPressio::Platform::Portable::Memory::ByteOperationsProvider;
+
 /// Initializes a small bounded text and binary example and reports the resulting values.
 void setup() {
     Serial.begin(115200);
 
-    String<32U> message;
+    String<32U, ByteOperationsProvider> message;
 
     if (message.Assign("bounded") != StringAssignmentResult::Succeeded) {
         Serial.println("String assignment failed.");
@@ -23,7 +26,7 @@ void setup() {
         return;
     }
 
-    Bytes<8U> payload;
+    Bytes<8U, ByteOperationsProvider> payload;
 
     for (std::uint8_t value = 1U; value <= 4U; ++value)
         if (payload.PushBack(value) != BytesPushBackResult::Succeeded) {

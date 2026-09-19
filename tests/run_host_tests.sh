@@ -3,6 +3,10 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BUILD_DIR="${ROOT_DIR}/tests/.test-build"
+SYSTEM_DIR="${EDP_SYSTEM_SOURCE_DIR:?EDP_SYSTEM_SOURCE_DIR must point at an EDP-System checkout}"
+PLATFORM_DIR="${EDP_PLATFORM_SOURCE_DIR:?EDP_PLATFORM_SOURCE_DIR must point at an EDP-Platform checkout}"
+MEMORY_DIR="${EDP_MEMORY_SOURCE_DIR:?EDP_MEMORY_SOURCE_DIR must point at an EDP-Memory checkout}"
+PORTABLE_DIR="${EDP_PLATFORM_PORTABLE_SOURCE_DIR:?EDP_PLATFORM_PORTABLE_SOURCE_DIR must point at an EDP-Platform-Portable checkout}"
 
 rm -rf "${BUILD_DIR}"
 mkdir -p "${BUILD_DIR}"
@@ -15,14 +19,13 @@ COMMON_FLAGS=(
     -Wpedantic
     -Werror
     -I"${ROOT_DIR}/src"
+    -I"${SYSTEM_DIR}/src"
+    -I"${PLATFORM_DIR}/src"
+    -I"${MEMORY_DIR}/src"
+    -I"${PORTABLE_DIR}/src"
 )
 
-"${CXX}" \
-    "${COMMON_FLAGS[@]}" \
-    -fsanitize=address,undefined \
-    -fno-omit-frame-pointer \
-    "${ROOT_DIR}/tests/host/main.cpp" \
-    -o "${BUILD_DIR}/host-tests"
+"${CXX}"     "${COMMON_FLAGS[@]}"     -fsanitize=address,undefined     -fno-omit-frame-pointer     "${ROOT_DIR}/tests/host/main.cpp"     -o "${BUILD_DIR}/host-tests"
 
 "${BUILD_DIR}/host-tests"
 

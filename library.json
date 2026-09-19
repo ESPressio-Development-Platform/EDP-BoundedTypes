@@ -9,8 +9,12 @@
     "url": "https://espressio.org"
   },
   "build": {
-    "flags": ["-std=gnu++17"],
-    "unflags": ["-std=gnu++11"]
+    "flags": [
+      "-std=gnu++17"
+    ],
+    "unflags": [
+      "-std=gnu++11"
+    ]
   },
   "repository": {
     "type": "git",
@@ -20,5 +24,16 @@
   "license": "Apache-2.0",
   "frameworks": "*",
   "platforms": "*",
-  "dependencies": []
+  "dependencies": [
+    {
+      "name": "EDP-Memory",
+      "version": "https://github.com/ESPressio-Development-Platform/EDP-Memory.git#main",
+      "platforms": "*"
+    },
+    {
+      "name": "EDP-Platform-Portable",
+      "version": "https://github.com/ESPressio-Development-Platform/EDP-Platform-Portable.git#main",
+      "platforms": "*"
+    }
+  ]
 }

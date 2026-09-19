@@ -6,7 +6,7 @@
 
 > the maximum amount of memory **owned by a value** must be finite and knowable without relying on heap growth.
 
-The library is deliberately concerned with owned runtime memory. It is not a serialization library, allocator, object registry, ownership framework, or platform abstraction.
+The library is deliberately concerned with owned runtime memory. It is not a serialization library, allocator, object registry, or ownership framework. Raw String/Bytes byte operations are consumed through the EDP-Memory ByteOperations abstraction rather than implemented as system-memory operations here.
 
 ---
 
@@ -75,6 +75,18 @@ inactive slots remain raw storage
 ```
 
 This allows contained Types to be non-default-constructible.
+
+---
+
+## ByteOperations and Object Footprint
+
+`String` and `Bytes` select an EDP-Memory ByteOperations provider at compile time.
+
+The default provider is the stateless Standard C/C++ concrete owned by `EDP-Platform-Portable`. No provider pointer or provider object is retained inside each bounded value.
+
+The BoundedTypes integration accepts only stateless, nothrow-default-constructible ByteOperations providers. This preserves the existing deterministic object footprint while still allowing compile-time substitution.
+
+This provider policy changes how raw bytes are moved/filled/compared; it does not change which memory the bounded value owns.
 
 ---
 
@@ -272,6 +284,8 @@ Any operation that attempts to add logical content returns its normal capacity f
 ## Allocation and Thread Safety
 
 The library itself performs no dynamic allocation.
+
+String/Bytes byte operations are delegated to a zero-state compile-time ByteOperations provider and do not add dynamic ownership or per-object provider state.
 
 Accepting a dynamic standard-library value as an **input source** does not transfer that dynamic ownership into the bounded destination.
 
