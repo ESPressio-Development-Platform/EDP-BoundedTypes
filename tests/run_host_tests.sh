@@ -13,7 +13,7 @@ mkdir -p "${BUILD_DIR}"
 
 CXX="${CXX:-g++}"
 COMMON_FLAGS=(
-    -std=c++17
+    -std=c++20
     -Wall
     -Wextra
     -Wpedantic
