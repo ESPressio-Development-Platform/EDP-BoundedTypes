@@ -35,7 +35,7 @@ The following bounded-memory facilities are currently provided:
 - `String`/`Bytes` raw memory operations consume `EDP-Memory::ByteOperations`; Standard C/C++ memory primitives are not owned directly by this repository.
 - The default ByteOperations policy stores no provider object or pointer in each bounded value, so provider integration adds no per-object RAM overhead.
 - Platform-specific conversion support is owned by the library exposing the external Type, never by `EDP-BoundedTypes`.
-- The library targets C++17 and performs no dynamic allocation internally.
+- The library targets C++20 and performs no dynamic allocation internally.
 
 ## Type Family
 
@@ -107,4 +107,8 @@ Each logical demo is represented for:
 
 Host tests cover capacity boundaries, zero-capacity behavior, String invariants, binary data, ByteOperations provider substitution, absence of provider-related per-object size overhead, non-trivial object lifetimes, moved-from empty semantics, ring behavior, associative semantics, trait qualification, and compile-fail cases for invalid contained/provider Types.
 
-The library is header-only and requires C++17.
+The library is header-only and requires C++20.
+
+## C++ Language Baseline
+
+ESPressio requires C++20. PlatformIO-compatible ESP32 demos use the maintained PIOArduino platform package so Arduino-ESP32 and ESP-IDF builds share a current C++20-capable toolchain baseline.
