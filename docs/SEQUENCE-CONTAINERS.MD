@@ -64,7 +64,7 @@ Unchecked indexed access is available through `operator[]`; checked access uses 
 
 ## Why Vector Does Not Expose Data()
 
-Under C++17, individually placement-constructed non-trivial objects in adjacent raw slots cannot honestly be advertised as a standard `T[]` array for arbitrary pointer arithmetic.
+Individually placement-constructed non-trivial objects in adjacent raw slots are not represented by this implementation as one standard `T[]` array suitable for arbitrary pointer arithmetic.
 
 Therefore generic `Vector<T,N>` deliberately does **not** promise:
 
@@ -222,7 +222,7 @@ For `CircularBuffer<T,0>`, both write forms report non-success and no value is d
 
 Vector, Deque, and CircularBuffer use logical iterators that retain an owner and logical index.
 
-They may support C++17 random-access behavior where appropriate, but they do not claim contiguous-iterator semantics.
+They provide standard random-access iterator behavior where appropriate, but they do not claim contiguous-iterator semantics.
 
 Ordering/subtraction of iterators from different owners is outside the valid precondition, matching ordinary container expectations.
 
