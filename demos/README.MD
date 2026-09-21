@@ -16,3 +16,7 @@ Each demo is provided in the three build surfaces required by the active ESPress
 The String/Bytes demo explicitly names the Portable ByteOperations provider so the abstraction-to-concrete binding is visible at the call site. Ordinary `String<N>` / `Bytes<N>` declarations use that same provider by default.
 
 PlatformIO projects consume the repository root through `lib_extra_dirs = ../../..` and declare the ESPressio Memory/Portable dependency stack required by the default ByteOperations provider.
+
+## C++ Language Baseline
+
+All PlatformIO-compatible variants require C++20 and explicitly select the maintained PIOArduino ESP32 platform package. PIOArduino is the recommended PlatformIO-compatible ESP32 environment for ESPressio.
