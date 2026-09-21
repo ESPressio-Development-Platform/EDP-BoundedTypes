@@ -112,7 +112,7 @@ struct MemoryBoundedTraits<MyType>
 };
 ```
 
-The compiler can validate the member Types supplied to the declaration, but C++17 cannot prove that the author listed every private owned member.
+The compiler can validate the member Types supplied to the declaration, but C++20 provides no standard reflection mechanism capable of proving that the author listed every private owned member.
 
 Therefore certification is an architectural responsibility of the Type-owning library.
 
