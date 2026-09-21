@@ -119,7 +119,7 @@ Schema membership cannot be used to bypass that rule.
 
 ## Unknown Types Are Rejected
 
-C++17 cannot inspect every private member of an arbitrary user-defined Type and prove that no member owns dynamic memory.
+C++20 does not provide standard reflection capable of inspecting every private member of an arbitrary user-defined Type and proving that no member owns dynamic memory.
 
 Therefore the default qualification is conservative:
 
