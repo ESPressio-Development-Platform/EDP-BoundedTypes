@@ -107,6 +107,16 @@ Each logical demo is represented for:
 
 Host tests cover capacity boundaries, zero-capacity behavior, String invariants, binary data, ByteOperations provider substitution, absence of provider-related per-object size overhead, non-trivial object lifetimes, moved-from empty semantics, ring behavior, associative semantics, trait qualification, and compile-fail cases for invalid contained/provider Types.
 
+The host runner executes functional and compile-fail coverage without sanitizers by default. Optional sanitizer passes are selected explicitly through `EDP_BOUNDEDTYPES_SANITIZER_MODE`:
+
+```bash
+EDP_BOUNDEDTYPES_SANITIZER_MODE=undefined ./tests/run_host_tests.sh
+EDP_BOUNDEDTYPES_SANITIZER_MODE=address ./tests/run_host_tests.sh
+EDP_BOUNDEDTYPES_SANITIZER_MODE=address,undefined ./tests/run_host_tests.sh
+```
+
+This keeps functional validation independent from host-toolchain sanitizer-runtime availability while retaining explicit ASan/UBSan coverage where the installed compiler/runtime supports it.
+
 The library is header-only and requires C++20.
 
 ## C++ Language Baseline
