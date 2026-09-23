@@ -55,7 +55,7 @@ namespace TestSupport {
     /// Stateless ByteOperations provider used to prove compile-time provider substitution.
     class CountingByteOperationsProvider final : public Framework::Provider<
         Memory::Domain,
-        Framework::Provides<
+        Framework::Offers<
             Framework::Offer<Memory::ByteOperations>
         >
     > {
