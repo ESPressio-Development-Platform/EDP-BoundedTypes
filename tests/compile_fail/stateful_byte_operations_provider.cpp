@@ -6,7 +6,7 @@ namespace Framework = ESPressio::System::CompositionFramework;
 /// Invalid stateful provider used to prove BoundedTypes rejects per-value provider state requirements.
 class StatefulByteOperationsProvider final : public Framework::Provider<
     Memory::Domain,
-    Framework::Provides<
+    Framework::Offers<
         Framework::Offer<Memory::ByteOperations>
     >
 > {
