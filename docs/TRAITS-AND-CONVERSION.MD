@@ -198,7 +198,7 @@ The explicit `CapacityUnit` prevents higher libraries from accidentally treating
 
 The default adapter is unavailable.
 
-A specialization supplies:
+A specialization supplies the conversion contract:
 
 ```text
 ResultType
@@ -207,7 +207,15 @@ IsNoexcept
 Convert(source, target)
 ```
 
-`IsTypeConversionAvailable<TSource,TTarget>` exposes availability as a Boolean compile-time predicate.
+Adapters which need to be consumed by generic code that must interpret success additionally expose:
+
+```cpp
+static constexpr bool IsSuccessful(ResultType result) noexcept;
+```
+
+`IsTypeConversionAvailable<TSource,TTarget>` continues to report conversion availability independently, preserving source compatibility for existing adapters.
+
+`HasTypeConversionSuccessPredicate<TSource,TTarget>` reports the stronger generic-success capability. `IsTypeConversionSuccessful<TSource,TTarget>(result)` delegates interpretation back to the owning adapter and is available only when that stronger capability is present. The generic layer never assumes an enum spelling, numeric success value, or shared result Type.
 
 ---
 

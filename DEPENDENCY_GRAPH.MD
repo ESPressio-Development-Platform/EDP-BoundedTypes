@@ -1,6 +1,6 @@
 # EDP-BoundedTypes Dependency Graph
 
-> Revalidated: 2026-09-23 — Composition Framework enhancement migration changes compile-time provider/requirement metadata and validation only; no ESPressio-library dependency edge changed.
+> Revalidated: 2026-10-01 — the TypeConversionAdapter success-capability extension adds no direct dependency. Current `EDP-Memory/main` now adds mandatory `EDP-BoundedTopology`, so the complete transitive graph and host validation harness were updated accordingly.
 
 ## Library Dependency Tree
 
@@ -8,15 +8,17 @@
 EDP-BoundedTypes
 ├── EDP-Memory [mandatory]
 │   ├── EDP-System [mandatory]
-│   └── EDP-Platform [mandatory]
-│       └── EDP-System [mandatory, transitive]
+│   ├── EDP-Platform [mandatory]
+│   │   └── EDP-System [mandatory, transitive]
+│   └── EDP-BoundedTopology [mandatory]
 └── EDP-Platform-Portable [mandatory]
     ├── EDP-Platform [mandatory]
     │   └── EDP-System [mandatory]
     └── EDP-Memory [mandatory]
         ├── EDP-System [mandatory]
-        └── EDP-Platform [mandatory]
-            └── EDP-System [mandatory, transitive]
+        ├── EDP-Platform [mandatory]
+        │   └── EDP-System [mandatory, transitive]
+        └── EDP-BoundedTopology [mandatory]
 ```
 
 ## Mandatory Dependencies
@@ -24,7 +26,7 @@ EDP-BoundedTypes
 - `EDP-Memory` — defines the `ByteOperations` abstraction and provider contract consumed by bounded String/Bytes raw byte movement, filling, and comparison.
 - `EDP-Platform-Portable` — supplies the default Standard C/C++ `ByteOperationsProvider` used by ordinary `String<N>` and `Bytes<N>` declarations.
 
-`EDP-System` and `EDP-Platform` are reached transitively through the Memory/Portable provider stack.
+`EDP-System`, `EDP-Platform`, and `EDP-BoundedTopology` are reached transitively through the Memory/Portable provider stack.
 
 The dependency remains acyclic: neither `EDP-Memory` nor `EDP-Platform-Portable` depends on `EDP-BoundedTypes`.
 
@@ -34,7 +36,7 @@ The dependency remains acyclic: neither `EDP-Memory` nor `EDP-Platform-Portable`
 
 ## Reverse Integration Dependencies
 
-External libraries may provide `TypeConversionAdapter<TSource, TTarget>` specializations for Types they own. Those integrations create a dependency **from the external library toward `EDP-BoundedTypes`**; they do not create a dependency from `EDP-BoundedTypes` back to the external library.
+External libraries may provide `TypeConversionAdapter<TSource, TTarget>` specializations for Types they own. Success-aware generic consumers can additionally require the adapter-owned `IsSuccessful(ResultType)` capability without changing dependency direction. Those integrations create a dependency **from the external library toward `EDP-BoundedTypes`**; they do not create a dependency from `EDP-BoundedTypes` back to the external library.
 
 Current example:
 

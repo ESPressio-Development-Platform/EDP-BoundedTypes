@@ -9,6 +9,7 @@ foreach(required_dir
     EDP_SYSTEM_SOURCE_DIR
     EDP_PLATFORM_SOURCE_DIR
     EDP_MEMORY_SOURCE_DIR
+    EDP_BOUNDED_TOPOLOGY_SOURCE_DIR
     EDP_PLATFORM_PORTABLE_SOURCE_DIR
 )
     if(NOT DEFINED ${required_dir})
@@ -28,6 +29,7 @@ target_include_directories(
         ${EDP_SYSTEM_SOURCE_DIR}/src
         ${EDP_PLATFORM_SOURCE_DIR}/src
         ${EDP_MEMORY_SOURCE_DIR}/src
+        ${EDP_BOUNDED_TOPOLOGY_SOURCE_DIR}/src
         ${EDP_PLATFORM_PORTABLE_SOURCE_DIR}/src
 )
 

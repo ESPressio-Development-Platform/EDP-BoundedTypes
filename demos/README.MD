@@ -11,7 +11,7 @@ Each demo is provided in the three build surfaces required by the active ESPress
 - `string-and-bytes` — bounded text/binary mutation and explicit compile-time ByteOperations provider selection.
 - `sequence-containers` — Vector, Deque, Queue, Stack, and CircularBuffer.
 - `associative-containers` — Set uniqueness and Map key/value behavior.
-- `traits-and-capacity` — compiler-backed memory-boundedness and capacity metadata.
+- `traits-and-capacity` — compiler-backed memory-boundedness, capacity metadata, and adapter-owned generic conversion-success interpretation.
 
 The String/Bytes demo explicitly names the Portable ByteOperations provider so the abstraction-to-concrete binding is visible at the call site. Ordinary `String<N>` / `Bytes<N>` declarations use that same provider by default.
 

@@ -309,6 +309,17 @@ namespace TestSupport {
 
     };
 
+    /// Represents a legacy source text Type whose adapter intentionally predates generic success interpretation.
+    struct LegacyExternalText final {
+
+        /// References caller-owned text bytes.
+        const char* Data = nullptr;
+
+        /// Stores the explicit source byte length.
+        std::size_t Size = 0U;
+
+    };
+
     /// Represents a target text Type whose conversion adapter is supplied by its owning test integration.
     struct ExternalBuffer final {
 
@@ -360,6 +371,13 @@ namespace ESPressio::Bounded {
         /// Indicates that this adapter performs no throwing operation.
         static constexpr bool IsNoexcept = true;
 
+        /// Interprets this integration-specific result without exposing its enum vocabulary to generic consumers.
+        static constexpr bool IsSuccessful(
+            const ResultType result
+        ) noexcept {
+            return result == ResultType::Succeeded;
+        }
+
         /// Converts explicit external text bytes into a bounded String.
         static ResultType Convert(
             const TestSupport::ExternalText& source,
@@ -392,6 +410,13 @@ namespace ESPressio::Bounded {
         /// Indicates that this adapter performs no throwing operation.
         static constexpr bool IsNoexcept = true;
 
+        /// Interprets this integration-specific result without exposing its enum vocabulary to generic consumers.
+        static constexpr bool IsSuccessful(
+            const ResultType result
+        ) noexcept {
+            return result == ResultType::Succeeded;
+        }
+
         /// Converts a bounded String into the external buffer when its fixed storage is sufficient.
         static ResultType Convert(
             const String<TCapacity>& source,
@@ -409,6 +434,38 @@ namespace ESPressio::Bounded {
             target = candidate;
 
             return ResultType::Succeeded;
+        }
+
+    };
+
+    /// Preserves conversion availability for a legacy adapter which has not opted into generic success interpretation.
+    template<std::size_t TCapacity>
+    struct TypeConversionAdapter<TestSupport::LegacyExternalText, String<TCapacity>> {
+
+        /// Identifies the operation-specific result Type owned by this external test integration.
+        using ResultType = TestSupport::ExternalTextConversionResult;
+
+        /// Indicates that this legacy adapter remains an available conversion.
+        static constexpr bool IsAvailable = true;
+
+        /// Indicates that this legacy adapter performs no throwing operation.
+        static constexpr bool IsNoexcept = true;
+
+        /// Converts legacy external text into a bounded String without defining a generic success predicate.
+        static ResultType Convert(
+            const TestSupport::LegacyExternalText& source,
+            String<TCapacity>& target
+        ) noexcept {
+            const auto result = target.Assign(
+                source.Data,
+                source.Size
+            );
+
+            if (result == StringAssignmentResult::Succeeded) { return ResultType::Succeeded; }
+
+            if (result == StringAssignmentResult::CapacityExceeded) { return ResultType::CapacityExceeded; }
+
+            return ResultType::InvalidSource;
         }
 
     };
@@ -436,6 +493,17 @@ namespace {
         static_assert(CapacityTraits<String<32U>>::Unit == CapacityUnit::Bytes);
         static_assert(CapacityTraits<Vector<int, 8U>>::Unit == CapacityUnit::Elements);
         static_assert(CapacityTraits<Map<int, int, 4U>>::Unit == CapacityUnit::Entries);
+        static_assert(IsTypeConversionAvailable<TestSupport::ExternalText, String<8U>>);
+        static_assert(HasTypeConversionSuccessPredicate<TestSupport::ExternalText, String<8U>>);
+        static_assert(IsTypeConversionAvailable<TestSupport::LegacyExternalText, String<8U>>);
+        static_assert(!HasTypeConversionSuccessPredicate<TestSupport::LegacyExternalText, String<8U>>);
+        static_assert(!HasTypeConversionSuccessPredicate<int, String<8U>>);
+        static_assert(IsTypeConversionSuccessful<TestSupport::ExternalText, String<8U>>(
+            TestSupport::ExternalTextConversionResult::Succeeded
+        ));
+        static_assert(!IsTypeConversionSuccessful<TestSupport::ExternalText, String<8U>>(
+            TestSupport::ExternalTextConversionResult::InvalidSource
+        ));
     }
 
     /// Verifies bounded String invariants, typed failures, overlap handling, and widening assignment.
@@ -676,11 +744,19 @@ namespace {
             5U
         };
 
-        assert(bounded.CastFrom(source) == TestSupport::ExternalTextConversionResult::Succeeded);
+        const auto fromResult = bounded.CastFrom(source);
+        assert(fromResult == TestSupport::ExternalTextConversionResult::Succeeded);
+        assert((IsTypeConversionSuccessful<TestSupport::ExternalText, String<8U>>(
+            fromResult
+        )));
         assert(bounded.View() == "hello");
 
         TestSupport::ExternalBuffer target{};
-        assert(bounded.CastTo(target) == TestSupport::ExternalTextConversionResult::Succeeded);
+        const auto toResult = bounded.CastTo(target);
+        assert(toResult == TestSupport::ExternalTextConversionResult::Succeeded);
+        assert((IsTypeConversionSuccessful<String<8U>, TestSupport::ExternalBuffer>(
+            toResult
+        )));
         assert(target.Size == 5U);
         assert(target.Data[5U] == '\0');
     }

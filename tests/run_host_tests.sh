@@ -6,6 +6,7 @@ BUILD_DIR="${ROOT_DIR}/tests/.test-build"
 SYSTEM_DIR="${EDP_SYSTEM_SOURCE_DIR:?EDP_SYSTEM_SOURCE_DIR must point at an EDP-System checkout}"
 PLATFORM_DIR="${EDP_PLATFORM_SOURCE_DIR:?EDP_PLATFORM_SOURCE_DIR must point at an EDP-Platform checkout}"
 MEMORY_DIR="${EDP_MEMORY_SOURCE_DIR:?EDP_MEMORY_SOURCE_DIR must point at an EDP-Memory checkout}"
+BOUNDED_TOPOLOGY_DIR="${EDP_BOUNDED_TOPOLOGY_SOURCE_DIR:?EDP_BOUNDED_TOPOLOGY_SOURCE_DIR must point at an EDP-BoundedTopology checkout}"
 PORTABLE_DIR="${EDP_PLATFORM_PORTABLE_SOURCE_DIR:?EDP_PLATFORM_PORTABLE_SOURCE_DIR must point at an EDP-Platform-Portable checkout}"
 
 rm -rf "${BUILD_DIR}"
@@ -22,6 +23,7 @@ COMMON_FLAGS=(
     -I"${SYSTEM_DIR}/src"
     -I"${PLATFORM_DIR}/src"
     -I"${MEMORY_DIR}/src"
+    -I"${BOUNDED_TOPOLOGY_DIR}/src"
     -I"${PORTABLE_DIR}/src"
 )
 

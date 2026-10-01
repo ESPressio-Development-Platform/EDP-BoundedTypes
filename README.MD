@@ -21,7 +21,7 @@ The following bounded-memory facilities are currently provided:
   Documents `Set` and `Map`, including insertion-order storage, linear lookup, uniqueness guarantees, key immutability, semantic equality, and why map-style `operator[]` is deliberately absent.
 
 - [Traits and External Conversion](./docs/TRAITS-AND-CONVERSION.MD)  
-  Documents `MemoryBoundedTraits`, `CapacityTraits`, custom bounded-Type certification, `TypeConversionAdapter`, and the ownership rule for conversions to external/platform Types.
+  Documents `MemoryBoundedTraits`, `CapacityTraits`, custom bounded-Type certification, `TypeConversionAdapter`, generic adapter-success interpretation, and the ownership rule for conversions to external/platform Types.
 
 ## Core Guarantees
 
@@ -35,6 +35,7 @@ The following bounded-memory facilities are currently provided:
 - `String`/`Bytes` raw memory operations consume `EDP-Memory::ByteOperations`; Standard C/C++ memory primitives are not owned directly by this repository.
 - The default ByteOperations policy stores no provider object or pointer in each bounded value, so provider integration adds no per-object RAM overhead.
 - Platform-specific conversion support is owned by the library exposing the external Type, never by `EDP-BoundedTypes`.
+- Generic consumers can detect and invoke an adapter-owned `IsSuccessful(ResultType)` predicate without assuming integration-specific result-enum vocabulary.
 - The library targets C++20 and performs no dynamic allocation internally.
 
 ## Type Family
@@ -71,18 +72,20 @@ The exact mutation surface remains Type-specific.
 EDP-BoundedTypes
 ├── EDP-Memory [mandatory]
 │   ├── EDP-System [mandatory]
-│   └── EDP-Platform [mandatory]
-│       └── EDP-System [mandatory, transitive]
+│   ├── EDP-Platform [mandatory]
+│   │   └── EDP-System [mandatory, transitive]
+│   └── EDP-BoundedTopology [mandatory]
 └── EDP-Platform-Portable [mandatory]
     ├── EDP-Platform [mandatory]
     │   └── EDP-System [mandatory]
     └── EDP-Memory [mandatory]
         ├── EDP-System [mandatory]
-        └── EDP-Platform [mandatory]
-            └── EDP-System [mandatory, transitive]
+        ├── EDP-Platform [mandatory]
+        │   └── EDP-System [mandatory, transitive]
+        └── EDP-BoundedTopology [mandatory]
 ```
 
-`EDP-Memory` defines the ByteOperations abstraction. `EDP-Platform-Portable` supplies the default Standard C/C++ provider selected by ordinary `String<N>` / `Bytes<N>` declarations.
+`EDP-Memory` defines the ByteOperations abstraction. Current Memory also consumes `EDP-BoundedTopology` for compact dedicated-pool identity, which is therefore a transitive dependency of this repository. `EDP-Platform-Portable` supplies the default Standard C/C++ provider selected by ordinary `String<N>` / `Bytes<N>` declarations.
 
 External integration libraries may depend **toward** `EDP-BoundedTypes`. For example, `EDP-Platform-Arduino` optionally supplies Arduino `String` / `Bounded::String<N>` conversion adapters. That reverse integration does not create a dependency from this repository back to Arduino.
 
@@ -95,7 +98,7 @@ Buildable demonstrations are provided under [`./demos`](./demos) for:
 - String and Bytes;
 - sequence/ring containers;
 - Set and Map;
-- compile-time traits and capacity metadata.
+- compile-time traits, capacity metadata, and generic conversion-success capability.
 
 Each logical demo is represented for:
 

@@ -1,0 +1,102 @@
+name: validate
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  host:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        compiler: [g++, clang++]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: ESPressio-Development-Platform/EDP-System
+          path: deps/EDP-System
+      - uses: actions/checkout@v4
+        with:
+          repository: ESPressio-Development-Platform/EDP-Platform
+          path: deps/EDP-Platform
+      - uses: actions/checkout@v4
+        with:
+          repository: ESPressio-Development-Platform/EDP-Memory
+          path: deps/EDP-Memory
+      - uses: actions/checkout@v4
+        with:
+          repository: ESPressio-Development-Platform/EDP-BoundedTopology
+          path: deps/EDP-BoundedTopology
+      - uses: actions/checkout@v4
+        with:
+          repository: ESPressio-Development-Platform/EDP-Platform-Portable
+          path: deps/EDP-Platform-Portable
+      - name: Host contracts
+        env:
+          CXX: ${{ matrix.compiler }}
+          EDP_SYSTEM_SOURCE_DIR: ${{ github.workspace }}/deps/EDP-System
+          EDP_PLATFORM_SOURCE_DIR: ${{ github.workspace }}/deps/EDP-Platform
+          EDP_MEMORY_SOURCE_DIR: ${{ github.workspace }}/deps/EDP-Memory
+          EDP_BOUNDED_TOPOLOGY_SOURCE_DIR: ${{ github.workspace }}/deps/EDP-BoundedTopology
+          EDP_PLATFORM_PORTABLE_SOURCE_DIR: ${{ github.workspace }}/deps/EDP-Platform-Portable
+        run: ./tests/run_host_tests.sh
+
+  sanitizers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: ESPressio-Development-Platform/EDP-System
+          path: deps/EDP-System
+      - uses: actions/checkout@v4
+        with:
+          repository: ESPressio-Development-Platform/EDP-Platform
+          path: deps/EDP-Platform
+      - uses: actions/checkout@v4
+        with:
+          repository: ESPressio-Development-Platform/EDP-Memory
+          path: deps/EDP-Memory
+      - uses: actions/checkout@v4
+        with:
+          repository: ESPressio-Development-Platform/EDP-BoundedTopology
+          path: deps/EDP-BoundedTopology
+      - uses: actions/checkout@v4
+        with:
+          repository: ESPressio-Development-Platform/EDP-Platform-Portable
+          path: deps/EDP-Platform-Portable
+      - name: ASan and UBSan
+        env:
+          CXX: g++
+          EDP_BOUNDEDTYPES_SANITIZER_MODE: address,undefined
+          EDP_SYSTEM_SOURCE_DIR: ${{ github.workspace }}/deps/EDP-System
+          EDP_PLATFORM_SOURCE_DIR: ${{ github.workspace }}/deps/EDP-Platform
+          EDP_MEMORY_SOURCE_DIR: ${{ github.workspace }}/deps/EDP-Memory
+          EDP_BOUNDED_TOPOLOGY_SOURCE_DIR: ${{ github.workspace }}/deps/EDP-BoundedTopology
+          EDP_PLATFORM_PORTABLE_SOURCE_DIR: ${{ github.workspace }}/deps/EDP-Platform-Portable
+        run: ./tests/run_host_tests.sh
+
+  pioarduino-demos:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        project:
+          - demos/string-and-bytes/PlatformIO_Arduino
+          - demos/string-and-bytes/PlatformIO_ESP-IDF
+          - demos/sequence-containers/PlatformIO_Arduino
+          - demos/sequence-containers/PlatformIO_ESP-IDF
+          - demos/associative-containers/PlatformIO_Arduino
+          - demos/associative-containers/PlatformIO_ESP-IDF
+          - demos/traits-and-capacity/PlatformIO_Arduino
+          - demos/traits-and-capacity/PlatformIO_ESP-IDF
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install current PIOArduino Core
+        run: |
+          curl -fsSL -o get-platformio.py https://raw.githubusercontent.com/pioarduino/pioarduino-core-installer/pioarduino/get-platformio.py
+          python3 get-platformio.py
+          echo "$HOME/.platformio/penv/bin" >> "$GITHUB_PATH"
+      - name: Build demo
+        run: pio run -d "${{ matrix.project }}"

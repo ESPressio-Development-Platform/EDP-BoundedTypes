@@ -19,7 +19,7 @@ These are stronger local requirements than the general Memory ByteOperations pro
 
 ## Extension contract
 
-External type owners may specialize `TypeConversionAdapter<Source,Target>`. Memory boundedness of custom owned types is only recognized when their owning library explicitly specializes/certifies the MemoryBounded traits.
+External type owners may specialize `TypeConversionAdapter<Source,Target>`. A specialization remains conversion-available through `IsAvailable`; integrations requiring generic success interpretation additionally own `IsSuccessful(ResultType)`, which higher-level generic consumers detect without importing the external result vocabulary. Memory boundedness of custom owned types is only recognized when their owning library explicitly specializes/certifies the MemoryBounded traits.
 
 ## Resource implication
 
